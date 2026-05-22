@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# --- CONFIG ---
+BACKEND_PORT=3001
+FRONTEND_PORT=5173
+BACKEND_DIR="backend"
+FRONTEND_DIR="frontend"
+
+# --- FUNCTION TO KILL PROCESS BY PORT ---
+kill_process_on_port() {
+  PORT=$1
+  echo "Checking for process on port $PORT..."
+  # lsof -t -i:PORT returns the PID of the process listening on that port
+  PID=$(lsof -t -i:$PORT)
+
+  if [ -n "$PID" ]; then
+    echo "Found process with PID $PID on port $PORT. Terminating."
+    kill -9 $PID
+    sleep 1 # Give it a moment to release the port
+  else
+    echo "No process found on port $PORT."
+  fi
+}
+
+# --- RESTART LOGIC ---
+echo "--- Clutch Server Restart ---"
+
+# Kill existing servers
+kill_process_on_port $BACKEND_PORT
+kill_process_on_port $FRONTEND_PORT
+
+echo ""
+echo "Clearing frontend cache..."
+rm -rf $FRONTEND_DIR/node_modules/.vite
+
+echo ""
+echo "Starting backend server..."
+(cd $BACKEND_DIR && npm run dev) &
+BACKEND_PID=$!
+echo "Backend server started in background with PID $BACKEND_PID."
+
+echo ""
+echo "Starting frontend server..."
+(cd $FRONTEND_DIR && npm run dev) &
+FRONTEND_PID=$!
+echo "Frontend server started in background with PID $FRONTEND_PID."
+
+echo ""
+echo "--- Servers are starting up ---"
+echo "Backend will be on http://localhost:$BACKEND_PORT"
+echo "Frontend will be on http://localhost:$FRONTEND_PORT"

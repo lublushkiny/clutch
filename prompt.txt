@@ -1,0 +1,118 @@
+=========================================
+PROJECT ARCHITECTURE SPECIFICATION: CLUTCH-1X1
+=========================================
+
+1. PROJECT STRUCTURE
+-----------------------------------------
+clutch-tournament/
+├── backend/
+│   ├── src/
+│   │   ├── config/
+│   │   │   └── database.ts       # Настройка SQLite / JSON-хранилища
+│   │   ├── models/
+│   │   │   └── types.ts          # Общие интерфейсы данных
+│   │   ├── routes/
+│   │   │   ├── players.ts        # Роуты игроков и профилей
+│   │   │   └── matches.ts        # Роуты матчей, аукциона и Гран-при
+│   │   └── index.ts              # Точка входа Express (TS-node)
+│   ├── package.json
+│   └── tsconfig.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── TournamentBracket.tsx  # Сетка (Double Elimination / Очередь)
+│   │   │   ├── PlayerProfile.tsx      # Профиль игрока (Летопись скилла)
+│   │   │   └── AuctionPanel.tsx       # Панель ставок за Трон
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── package.json
+│   └── vite.config.ts
+└── README.md
+
+
+2. BACKEND SPECIFICATION (Express + TypeScript + SQLite)
+-----------------------------------------
+// package.json dependencies: express, cors, sqlite3, sqlite, dotenv
+// devDependencies: typescript, @types/express, @types/cors, ts-node-dev
+
+--- FILE: backend/src/models/types.ts ---
+export interface Player {
+  id: string;             // Уникальный ID (или Telegram ID)
+  name: string;
+  telegram: string;
+  clutchPoints: number;   // Текущий баланс очков для ставок
+  totalEarned: number;    // Всего заработано (метрика эффективности)
+  totalSpent: number;     // Всего сожжено на аукционах
+  maxStreak: number;      // Лучшая серия побед
+  currentStreak: number;  // Текущая серия (для триггера Гран-при)
+}
+
+export interface Match {
+  id: string;
+  playerAId: string;
+  playerBId: string;
+  scoreA: number;
+  scoreB: number;
+  winnerId: string;
+  bidPool: number;        // Сколько всего поинтов было на кону в этом матче
+  grandPrizeContribution: number; // 50% от ставки, ушедшие в пул Гран-при
+  timestamp: number;
+}
+
+export interface TournamentState {
+  currentKingId: string | null;  // Кто сейчас на троне
+  grandPrizePool: number;        // Текущий размер пула Гран-при
+  queue: { playerId: string; bid: number }[]; // Очередь претендентов, отсортированная по bid
+}
+
+
+--- FILE: backend/src/routes/matches.ts ---
+// Ключевая бизнес-логика, которую агент должен реализовать:
+// 1. POST /api/auction/bid — Игрок тратит X поинтов. 
+//    - Списываем из его clutchPoints, добавляем в totalSpent.
+//    - Помещаем в state.queue. Сортируем очередь по убыванию bid.
+//
+// 2. POST /api/matches/resolve — Фиксация результата матча (Король vs Первый в очереди)
+//    - Претендент извлекается из топа очереди: queue.shift()
+//    - Общий пул матча = bid претендента.
+//    - В фонд Гран-при уходит: grandPrize = Math.floor(bid * 0.5)
+//    - Победителю матча начисляется: reward = bid - grandPrize
+//    - Обновляем state.grandPrizePool += grandPrize
+//    - IF (Победитель == Текущий Король):
+//        currentStreak++
+//        totalEarned += reward
+//        if (currentStreak === 3 || currentStreak === 5) {
+//           // Вскрываем Джекпот Гран-при!
+//           winner.clutchPoints += state.grandPrizePool;
+//           winner.totalEarned += state.grandPrizePool;
+//           state.grandPrizePool = 0; // Сброс пула
+//        }
+//      ELSE (Претендент победил Короля):
+//        - Старый король теряет трон, его currentStreak = 0.
+//        - Новый король (претендент) садится на трон, currentStreak = 1.
+//        - Новый король получает свой reward за этот конкретный матч.
+//    - Пересчитываем maxStreak для победителя. Сохраняем матч в историю.
+
+
+3. FRONTEND SPECIFICATION (React + Vite + Tailwind/CSS)
+-----------------------------------------
+// Компоненты для реализации агентом:
+// 1. Трон и Очередь: Крупный виджет текущего Короля с его счетчиком стейков (currentStreak).
+04:30 PM
+
+
+//    Ниже — список очереди, где наглядно видно, чья ставка сейчас «первая на вылет».
+// 2. Панель Ставок: Интерфейс для игрока, где он может выбрать себя и закинуть поинты в ставку, 
+//    чтобы ворваться в топ очереди.
+// 3. Счётчик Гран-при: Огромные цифры по центру экрана, показывающие state.grandPrizePool. 
+//    Это создает психологическое давление — все видят, сколько поинтов заберет тот, кто сделает стрик.
+// 4. Летопись Скилла: Таблица лидеров (Leaderboard), сортируемая по totalEarned, maxStreak или clutchPoints.
+
+=========================================
+INSTRUCTION FOR CLI AGENT:
+1. Initialize backend with Express, TypeScript, and SQLite (use sqlite3 and sqlite wrappers).
+2. Initialize frontend using Vite + React + TypeScript.
+3. Use a single JSON file or a simple sqlite.db with tables `players`, `matches`, and `system_state` for persistence.
+4. Provide REST API endpoints according to the specification above.
+5. Create a clean, responsive single-page UI to manage the tournament live from a phone/tablet on the court.
+=========================================
