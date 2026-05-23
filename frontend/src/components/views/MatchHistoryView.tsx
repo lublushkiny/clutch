@@ -51,7 +51,7 @@ const MatchHistoryView = () => {
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className="font-mono text-lg">{match.bidPool} <span className="text-sm text-gray-400">GAS</span></p>
+                                <p className="font-mono text-lg">{match.playerABid} vs {match.playerBBid} <span className="text-sm text-gray-400">GAS</span></p>
                                 <p className="text-xs text-gray-500">(в супер-игру: {match.superGameContribution})</p>
                             </div>
                         </div>

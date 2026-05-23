@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Player } from '../types';
+import { useAuth } from '../contexts/AuthContext'; // Import useAuth
 
 interface MatchModalProps {
     player1: Player;
@@ -13,6 +14,7 @@ const MatchModal: React.FC<MatchModalProps> = ({ player1, player2, matchType, on
     const [player1Score, setPlayer1Score] = useState(0);
     const [player2Score, setPlayer2Score] = useState(0);
     const [isResolving, setIsResolving] = useState(false);
+    const { user } = useAuth(); // Get user from context
 
     const handleEndMatch = async () => {
         setIsResolving(true);
@@ -38,7 +40,7 @@ const MatchModal: React.FC<MatchModalProps> = ({ player1, player2, matchType, on
 
     const getPlayerRole = (player: Player) => {
         if (matchType === 'king_vs_challenger') {
-            return player.id === player1.id ? '(Король)' : '(Претендент)';
+            return player.id === player1.id ? '(Топ-1)' : '(Претендент)';
         } else { // challenger_vs_challenger
             return player.id === player1.id ? '(Претендент 1)' : '(Претендент 2)';
         }
@@ -61,17 +63,21 @@ const MatchModal: React.FC<MatchModalProps> = ({ player1, player2, matchType, on
                         <p className="text-xl font-semibold">{player1.name}</p>
                         <p className="text-sm text-gray-400 mb-2">{getPlayerRole(player1)}</p>
                         <div className="flex items-center justify-center space-x-2 mt-2">
-                            <button
-                                onClick={() => setPlayer1Score(prev => Math.max(0, prev - 1))}
-                                className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-8 h-8 flex items-center justify-center"
-                            >-
-                            </button>
+                            {user?.isAdmin && (
+                                <button
+                                    onClick={() => setPlayer1Score(prev => Math.max(0, prev - 1))}
+                                    className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-8 h-8 flex items-center justify-center"
+                                >-
+                                </button>
+                            )}
                             <span className="text-5xl font-bold text-orange-300">{player1Score}</span>
-                            <button
-                                onClick={() => setPlayer1Score(prev => prev + 1)}
-                                className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-8 h-8 flex items-center justify-center"
-                            >+
-                            </button>
+                            {user?.isAdmin && (
+                                <button
+                                    onClick={() => setPlayer1Score(prev => prev + 1)}
+                                    className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-8 h-8 flex items-center justify-center"
+                                >+
+                                </button>
+                            )}
                         </div>
                     </div>
                     <div className="text-4xl font-bold self-center">VS</div>
@@ -80,28 +86,34 @@ const MatchModal: React.FC<MatchModalProps> = ({ player1, player2, matchType, on
                         <p className="text-xl font-semibold">{player2.name}</p>
                         <p className="text-sm text-gray-400 mb-2">{getPlayerRole(player2)}</p>
                         <div className="flex items-center justify-center space-x-2 mt-2">
-                            <button
-                                onClick={() => setPlayer2Score(prev => Math.max(0, prev - 1))}
-                                className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-8 h-8 flex items-center justify-center"
-                            >-
-                            </button>
+                            {user?.isAdmin && (
+                                <button
+                                    onClick={() => setPlayer2Score(prev => Math.max(0, prev - 1))}
+                                    className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-8 h-8 flex items-center justify-center"
+                                >-
+                                </button>
+                            )}
                             <span className="text-5xl font-bold text-orange-300">{player2Score}</span>
-                            <button
-                                onClick={() => setPlayer2Score(prev => prev + 1)}
-                                className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-8 h-8 flex items-center justify-center"
-                            >+
-                            </button>
+                            {user?.isAdmin && (
+                                <button
+                                    onClick={() => setPlayer2Score(prev => prev + 1)}
+                                    className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-8 h-8 flex items-center justify-center"
+                                >+
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                <button
-                    onClick={handleEndMatch}
-                    disabled={isResolving}
-                    className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-md transition-colors disabled:opacity-50"
-                >
-                    {isResolving ? 'Завершение...' : 'Завершить матч'}
-                </button>
+                {user?.isAdmin && (
+                    <button
+                        onClick={handleEndMatch}
+                        disabled={isResolving}
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-md transition-colors disabled:opacity-50"
+                    >
+                        {isResolving ? 'Завершение...' : 'Завершить матч'}
+                    </button>
+                )}
             </div>
         </div>
     );

@@ -1,11 +1,25 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 
 const API_URL = 'http://localhost:3001/api';
 
 const AccountView: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (user) {
+        try {
+          const res = await axios.get(`${API_URL}/players/${user.id}`);
+          updateUser(res.data);
+        } catch (error) {
+          console.error("Failed to fetch user data:", error);
+        }
+      }
+    };
+    fetchUser();
+  }, []); // Run only on initial mount, subsequent updates will come from other components
 
   const handleResetGame = async () => {
     if (window.confirm('Вы уверены, что хотите сбросить игру? Все очки игроков, история матчей и очередь будут очищены.')) {

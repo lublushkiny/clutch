@@ -1,6 +1,7 @@
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import path from 'path';
+import bcrypt from 'bcrypt';
 
 // Singleton instance of the database
 let dbInstance: Awaited<ReturnType<typeof open>> | null = null;
@@ -23,6 +24,7 @@ export const getDb = async () => {
       name TEXT NOT NULL,
       telegram TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
+      isAdmin BOOLEAN NOT NULL DEFAULT 0,
       clutchPoints INTEGER NOT NULL DEFAULT 0,
       totalEarned INTEGER NOT NULL DEFAULT 0,
       totalSpent INTEGER NOT NULL DEFAULT 0,
@@ -38,6 +40,8 @@ export const getDb = async () => {
       scoreB INTEGER NOT NULL,
       winnerId TEXT NOT NULL,
       bidPool INTEGER NOT NULL,
+      playerABid INTEGER,
+      playerBBid INTEGER,
       timestamp INTEGER NOT NULL,
       FOREIGN KEY(playerAId) REFERENCES players(id),
       FOREIGN KEY(playerBId) REFERENCES players(id),
@@ -52,26 +56,11 @@ export const getDb = async () => {
 
   // --- SCHEMA MIGRATIONS ---
   const playerTableInfo = await db.all("PRAGMA table_info(players)");
-  const hasPasswordColumn = playerTableInfo.some(col => col.name === 'password');
-
-  if (!hasPasswordColumn) {
-    console.log("Adding 'password' column to players table...");
-    await db.exec("ALTER TABLE players ADD COLUMN password TEXT");
-  }
-
   const matchTableInfo = await db.all("PRAGMA table_info(matches)");
-  const hasSuperGameColumn = matchTableInfo.some(col => col.name === 'superGameContribution');
 
-  if (!hasSuperGameColumn) {
-    console.log("Adding 'superGameContribution' column to matches table...");
-    await db.exec("ALTER TABLE matches ADD COLUMN superGameContribution INTEGER NOT NULL DEFAULT 0");
-  }
-  
-  const hasTelegramUniqueness = playerTableInfo.some(col => col.name === 'telegram' && col.pk === 0);
-  if(!hasTelegramUniqueness){
-      console.log("Adding 'UNIQUE' to telegram column to players table...");
-      // This is a more complex migration, for now we will just re-create the table
-      // In a real world scenario, you would create a new table, copy data, and then drop the old one.
+  if (!playerTableInfo.some(col => col.name === 'isAdmin')) {
+    console.log("Adding 'isAdmin' column to players table...");
+    await db.exec("ALTER TABLE players ADD COLUMN isAdmin BOOLEAN NOT NULL DEFAULT 0");
   }
 
   // --- INITIAL STATE ---
@@ -87,6 +76,17 @@ export const getDb = async () => {
       "INSERT INTO system_state (key, value) VALUES (?, ?)",
       'tournamentState',
       JSON.stringify(initialTournamentState)
+    );
+  }
+
+  // Seed admin user if it doesn't exist
+  const adminExists = await db.get("SELECT id FROM players WHERE isAdmin = 1");
+  if (!adminExists) {
+    const adminPassword = await bcrypt.hash('admin', 10);
+    await db.run(
+      `INSERT INTO players (id, name, telegram, password, isAdmin, clutchPoints) 
+       VALUES (?, ?, ?, ?, 1, 0)`,
+      'admin-user-id', 'Admin', 'admin', adminPassword
     );
   }
 

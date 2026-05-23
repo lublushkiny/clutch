@@ -1,24 +1,32 @@
 export interface Player {
-  id: string;             // Уникальный ID (или Telegram ID)
+  id: string;
   name: string;
   telegram: string;
-  password?: string; // Made optional to avoid breaking changes everywhere at once
-  clutchPoints: number;   // Текущий баланс очков для ставок
-  totalEarned: number;    // Всего заработано (метрика эффективности)
-  totalSpent: number;     // Всего сожжено на аукционах
-  maxStreak: number;      // Лучшая серия побед
-  currentStreak: number;  // Текущая серия (для триггера Гран-при)
+  password?: string;
+  isAdmin?: boolean;
+  clutchPoints: number;
+  totalEarned: number;
+  totalSpent: number;
+  maxStreak: number;
+  currentStreak: number;
+  // Fields for detailed stats, to be calculated by a query
+  matchesWon?: number;
+  matchesLost?: number;
+  pointsScored?: number;
+  pointsConceded?: number;
 }
 
 export interface Match {
   id: string;
   playerAId: string;
   playerBId: string;
+  playerABid?: number; // Add bid info to match
+  playerBBid?: number; // Add bid info to match
   scoreA: number;
   scoreB: number;
   winnerId: string;
-  bidPool: number;        // Сколько всего поинтов было на кону в этом матче
-  superGameContribution: number; // 50% от ставки, ушедшие в пул Супер-игры
+  bidPool: number;
+  superGameContribution: number;
   timestamp: number;
 }
 

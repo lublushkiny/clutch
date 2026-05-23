@@ -82,25 +82,14 @@ const QueueView = () => {
 
   return (
     <div className="space-y-8">
-        <div>
-            <h2 className="text-3xl font-bold text-center">Супер-игра</h2>
-            <p className="text-6xl font-mono text-orange-400 text-center animate-pulse">
-                {(tournamentState.superGamePool || 0).toLocaleString()} <span className="text-4xl text-gray-400">GAS</span>
-            </p>
-        </div>
-        <TournamentBracket king={king} queue={queueWithPlayerNames} />
-        <AuctionPanel onBid={fetchData} />
 
-        {canStartMatch && (
-            <div className="text-center mt-8">
-                <button
-                    onClick={handleStartMatch}
-                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-md text-xl transition-colors"
-                >
-                    Начать матч!
-                </button>
-            </div>
-        )}
+        <TournamentBracket 
+            king={king} 
+            queue={queueWithPlayerNames} 
+            canStartMatch={canStartMatch} 
+            handleStartMatch={handleStartMatch} 
+        />
+        <AuctionPanel onBid={fetchData} king={king} queue={queueWithPlayerNames} />
 
         {isMatchActive && activeMatchData && matchType && (
             <MatchModal

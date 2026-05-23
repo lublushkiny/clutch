@@ -4,11 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface AuctionPanelProps {
   onBid: () => void; // Callback to refresh data
+  king: Player | undefined;
+  queue: { playerId: string; bid: number; name: string }[];
 }
 
 const API_URL = 'http://localhost:3001/api';
 
-const AuctionPanel: React.FC<AuctionPanelProps> = ({ onBid }) => {
+const AuctionPanel: React.FC<AuctionPanelProps> = ({ onBid, king, queue }) => {
   const [bidAmount, setBidAmount] = useState<number>(100);
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -45,32 +47,22 @@ const AuctionPanel: React.FC<AuctionPanelProps> = ({ onBid }) => {
     setIsSubmitting(false);
   }
   };
+  
+  const isPlayerInQueue = user && queue.some(p => p.playerId === user.id);
+
+  if (!user || user.isAdmin || user.id === king?.id || isPlayerInQueue) {
+    return null;
+  }
+
   return (
     <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold mb-4 text-center">Сделать ставку</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="bid-amount" className="block text-sm font-medium mb-1">
-            Ваш баланс: {user?.clutchPoints.toLocaleString() ?? 0} GAS
-          </label>
-          <input
-            id="bid-amount"
-            type="number"
-            value={bidAmount}
-            onChange={(e) => setBidAmount(parseInt(e.target.value, 10))}
-            min="1"
-            className="w-full bg-gray-700 border-gray-600 rounded-md p-2 focus:ring-orange-500 focus:border-orange-500"
-          />
-        </div>
-        {error && <p className="text-red-500 text-sm">{error}</p>}
         <button
-          type="submit"
+          onClick={handleSubmit}
           disabled={isSubmitting || !user}
-          className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded-md transition-colors"
+          className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 text-white font-bold py-3 px-4 rounded-md text-xl transition-colors"
         >
-          {isSubmitting ? 'Отправка...' : 'Встать в очередь'}
+          Дать газу!
         </button>
-      </form>
     </div>
   );
 };

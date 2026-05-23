@@ -58,6 +58,10 @@ router.post('/auction/bid', authenticateToken, async (req, res) => {
       await db.run('ROLLBACK');
       return res.status(404).json({ message: 'Player not found' });
     }
+    if(player.isAdmin) {
+        await db.run('ROLLBACK');
+        return res.status(403).json({ message: 'Admins cannot place bids.' });
+    }
     if (player.clutchPoints < bid) {
       await db.run('ROLLBACK');
       return res.status(400).json({ message: 'Insufficient clutch points' });
@@ -96,6 +100,11 @@ router.post('/auction/bid', authenticateToken, async (req, res) => {
 
 // POST /api/matches/resolve — Фиксация результата матча
 router.post('/matches/resolve', authenticateToken, async (req, res) => {
+    const user = await req.db!.get<Player>('SELECT * FROM players WHERE id = ?', req.user!.id);
+    if (!user || !user.isAdmin) {
+        return res.status(403).json({ message: 'Only admins can resolve matches.' });
+    }
+
     const { winnerId } = req.body;
     let db = req.db!;
     if (!winnerId) {
@@ -118,7 +127,7 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
             }
             const p1Queue = state.queue.shift()!;
             const p2Queue = state.queue.shift()!;
-
+            
             const p1Data = await db.get<Player>('SELECT * FROM players WHERE id = ?', p1Queue.playerId);
             const p2Data = await db.get<Player>('SELECT * FROM players WHERE id = ?', p2Queue.playerId);
 
@@ -128,7 +137,7 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
 
             const winnerData = (winnerId === p1Data.id) ? p1Data : p2Data;
             const loserId = (winnerId === p1Data.id) ? p2Data.id : p1Data.id;
-
+            
             const bidPool = p1Queue.bid + p2Queue.bid;
             const superGameContribution = Math.floor(bidPool * 0.5);
             const reward = bidPool - superGameContribution;
@@ -148,22 +157,24 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
 
             state.currentKingId = winnerId;
             state.queue = state.queue.filter(p => p.playerId !== winnerId && p.playerId !== loserId);
-
+            
             const match: Match = {
                 id: randomUUID(),
                 playerAId: p1Data.id,
                 playerBId: p2Data.id,
+                playerABid: p1Queue.bid,
+                playerBBid: p2Queue.bid,
                 scoreA: winnerId === p1Data.id ? 1 : 0,
                 scoreB: winnerId === p2Data.id ? 1 : 0,
                 winnerId,
-                bidPool: p1Queue.bid + p2Queue.bid,
+                bidPool,
                 superGameContribution,
                 timestamp: Date.now(),
             };
             await db.run(
-                `INSERT INTO matches (id, playerAId, playerBId, scoreA, scoreB, winnerId, bidPool, superGameContribution, timestamp)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                match.id, match.playerAId, match.playerBId, match.scoreA, match.scoreB, match.winnerId, match.bidPool, match.superGameContribution, match.timestamp
+                `INSERT INTO matches (id, playerAId, playerBId, playerABid, playerBBid, scoreA, scoreB, winnerId, bidPool, superGameContribution, timestamp)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                match.id, match.playerAId, match.playerBId, match.playerABid, match.playerBBid, match.scoreA, match.scoreB, match.winnerId, match.bidPool, match.superGameContribution, match.timestamp
             );
 
             await updateTournamentState(db, state);
@@ -173,12 +184,6 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
 
         // Case 2: King vs Challenger
         const challengerQueue = state.queue.shift()!;
-        const bidPool = challengerQueue.bid;
-        const superGameContribution = Math.floor(bidPool * 0.5);
-        const reward = bidPool - superGameContribution;
-
-        state.superGamePool += superGameContribution;
-
         const challengerPlayer = await db.get<Player>('SELECT * FROM players WHERE id = ?', challengerQueue.playerId);
 
         if (!challengerPlayer) {
@@ -187,9 +192,14 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
 
         const loserId = (winnerId === currentKing.id) ? challengerPlayer.id : currentKing.id;
         const winner = (winnerId === currentKing.id) ? currentKing : challengerPlayer;
+        
+        const bidPool = challengerQueue.bid;
+        const superGameContribution = Math.floor(bidPool * 0.5);
+        const reward = bidPool - superGameContribution;
 
         winner.clutchPoints += reward;
         winner.totalEarned += reward;
+        state.superGamePool += superGameContribution;
 
         if (winner.id === currentKing.id) { // King wins
             winner.currentStreak++;
@@ -212,13 +222,15 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
             'UPDATE players SET clutchPoints = ?, totalEarned = ?, currentStreak = ?, maxStreak = ? WHERE id = ?',
             winner.clutchPoints, winner.totalEarned, winner.currentStreak, winner.maxStreak, winner.id
         );
-
+        
         state.queue = state.queue.filter(p => p.playerId !== loserId);
-
+        
         const match: Match = {
             id: randomUUID(),
             playerAId: currentKing.id,
             playerBId: challengerPlayer.id,
+            playerABid: 0, // King doesn't bid
+            playerBBid: challengerQueue.bid,
             scoreA: winnerId === currentKing.id ? 1 : 0,
             scoreB: winnerId === challengerPlayer.id ? 1 : 0,
             winnerId,
@@ -227,9 +239,9 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
             timestamp: Date.now(),
         };
          await db.run(
-            `INSERT INTO matches (id, playerAId, playerBId, scoreA, scoreB, winnerId, bidPool, superGameContribution, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            match.id, match.playerAId, match.playerBId, match.scoreA, match.scoreB, match.winnerId, match.bidPool, match.superGameContribution, match.timestamp
+            `INSERT INTO matches (id, playerAId, playerBId, playerABid, playerBBid, scoreA, scoreB, winnerId, bidPool, superGameContribution, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            match.id, match.playerAId, match.playerBId, match.playerABid, match.playerBBid, match.scoreA, match.scoreB, match.winnerId, match.bidPool, match.superGameContribution, match.timestamp
         );
         await updateTournamentState(db, state);
         await db.run('COMMIT');

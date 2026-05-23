@@ -9,7 +9,7 @@ const router = Router();
 router.get('/', async (req, res) => {
   try {
     const db = req.db!;
-    const players = await db.all('SELECT * FROM players ORDER BY totalEarned DESC');
+    const players = await db.all('SELECT * FROM players WHERE isAdmin = 0 ORDER BY totalEarned DESC');
     res.json(players);
   } catch (error) {
     console.error('Failed to get players:', error);
