@@ -1,28 +1,30 @@
 import { Router } from 'express';
-import { getDb } from '../config/database';
 import { Player } from '../models/types';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
+import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key'; // Use an environment variable in production
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key';
 const SALT_ROUNDS = 10;
+
+// GET /api/auth/validate-token - Validates the token on app load
+router.get('/validate-token', authenticateToken, (req, res) => {
+  res.status(200).json({ user: req.user });
+});
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   const { name, telegram, password } = req.body;
+  const db = req.db!;
 
   if (!name || !telegram || !password) {
     return res.status(400).json({ message: 'Name, telegram, and password are required' });
   }
 
-  let cleanTelegram = telegram.startsWith('@') ? telegram.substring(1) : telegram;
-
   try {
-    const db = await getDb();
-
-    // Check if player already exists
+    const cleanTelegram = telegram.startsWith('@') ? telegram.substring(1) : telegram;
     const existingPlayer = await db.get('SELECT id FROM players WHERE telegram = ?', cleanTelegram);
     if (existingPlayer) {
       return res.status(409).json({ message: 'A player with this telegram handle already exists.' });
@@ -35,7 +37,7 @@ router.post('/register', async (req, res) => {
       name,
       telegram: cleanTelegram,
       password: hashedPassword,
-      clutchPoints: 1000, // Starting points
+      clutchPoints: 1000,
       totalEarned: 0,
       totalSpent: 0,
       maxStreak: 0,
@@ -66,14 +68,14 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   const { telegram, password } = req.body;
-  let cleanTelegram = telegram.startsWith('@') ? telegram.substring(1) : telegram;
+  const db = req.db!;
 
   if (!telegram || !password) {
     return res.status(400).json({ message: 'Telegram and password are required' });
   }
 
   try {
-    const db = await getDb();
+    const cleanTelegram = telegram.startsWith('@') ? telegram.substring(1) : telegram;
     const player = await db.get<Player>('SELECT * FROM players WHERE telegram = ?', cleanTelegram);
 
     if (!player || !player.password) {
@@ -86,9 +88,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Authentication failed. Incorrect password.' });
     }
 
-    // Don't send password back
     const { password: _, ...userPayload } = player;
-
     const token = jwt.sign({ id: player.id, name: player.name }, JWT_SECRET, { expiresIn: '1d' });
 
     res.json({

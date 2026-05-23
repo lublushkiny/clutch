@@ -4,6 +4,8 @@ import { getDb } from './config/database';
 import playerRoutes from './routes/players';
 import matchRoutes from './routes/matches';
 import authRoutes from './routes/auth';
+import adminRoutes from './routes/admin'; // Import admin routes
+import { dbMiddleware } from './middleware/dbMiddleware'; // Import dbMiddleware
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -11,9 +13,11 @@ const PORT = process.env.PORT || 3001;
 // --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
+app.use(dbMiddleware); // Use dbMiddleware here
 
 // --- ROUTES ---
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes); // Use admin routes
 app.use('/api/players', playerRoutes);
 app.use('/api', matchRoutes);
 

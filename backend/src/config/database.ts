@@ -38,7 +38,6 @@ export const getDb = async () => {
       scoreB INTEGER NOT NULL,
       winnerId TEXT NOT NULL,
       bidPool INTEGER NOT NULL,
-      grandPrizeContribution INTEGER NOT NULL,
       timestamp INTEGER NOT NULL,
       FOREIGN KEY(playerAId) REFERENCES players(id),
       FOREIGN KEY(playerBId) REFERENCES players(id),
@@ -52,15 +51,23 @@ export const getDb = async () => {
   `);
 
   // --- SCHEMA MIGRATIONS ---
-  const tableInfo = await db.all("PRAGMA table_info(players)");
-  const hasPasswordColumn = tableInfo.some(col => col.name === 'password');
+  const playerTableInfo = await db.all("PRAGMA table_info(players)");
+  const hasPasswordColumn = playerTableInfo.some(col => col.name === 'password');
 
   if (!hasPasswordColumn) {
     console.log("Adding 'password' column to players table...");
     await db.exec("ALTER TABLE players ADD COLUMN password TEXT");
   }
+
+  const matchTableInfo = await db.all("PRAGMA table_info(matches)");
+  const hasSuperGameColumn = matchTableInfo.some(col => col.name === 'superGameContribution');
+
+  if (!hasSuperGameColumn) {
+    console.log("Adding 'superGameContribution' column to matches table...");
+    await db.exec("ALTER TABLE matches ADD COLUMN superGameContribution INTEGER NOT NULL DEFAULT 0");
+  }
   
-  const hasTelegramUniqueness = tableInfo.some(col => col.name === 'telegram' && col.pk === 0);
+  const hasTelegramUniqueness = playerTableInfo.some(col => col.name === 'telegram' && col.pk === 0);
   if(!hasTelegramUniqueness){
       console.log("Adding 'UNIQUE' to telegram column to players table...");
       // This is a more complex migration, for now we will just re-create the table
@@ -73,7 +80,7 @@ export const getDb = async () => {
   if (!currentState) {
     const initialTournamentState = {
       currentKingId: null,
-      grandPrizePool: 0,
+      superGamePool: 0,
       queue: [],
     };
     await db.run(

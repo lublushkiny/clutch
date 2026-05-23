@@ -83,9 +83,9 @@ const QueueView = () => {
   return (
     <div className="space-y-8">
         <div>
-            <h2 className="text-3xl font-bold text-center">Гранд-при</h2>
+            <h2 className="text-3xl font-bold text-center">Супер-игра</h2>
             <p className="text-6xl font-mono text-orange-400 text-center animate-pulse">
-                {tournamentState.grandPrizePool.toLocaleString()} <span className="text-4xl text-gray-400">GAS</span>
+                {(tournamentState.superGamePool || 0).toLocaleString()} <span className="text-4xl text-gray-400">GAS</span>
             </p>
         </div>
         <TournamentBracket king={king} queue={queueWithPlayerNames} />

@@ -1,8 +1,24 @@
 import React from 'react';
+import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+
+const API_URL = 'http://localhost:3001/api';
 
 const AccountView: React.FC = () => {
   const { user, logout } = useAuth();
+
+  const handleResetGame = async () => {
+    if (window.confirm('Вы уверены, что хотите сбросить игру? Все очки игроков, история матчей и очередь будут очищены.')) {
+      try {
+        await axios.post(`${API_URL}/admin/reset`);
+        alert('Игра успешно сброшена!');
+        logout(); // Force logout to clear state and re-authenticate
+      } catch (error) {
+        console.error('Failed to reset game:', error);
+        alert('Не удалось сбросить игру.');
+      }
+    }
+  };
 
   if (!user) {
     return <div className="text-center p-8">Не авторизован.</div>;
@@ -29,6 +45,12 @@ const AccountView: React.FC = () => {
           className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-md transition-colors mt-4"
         >
           Выйти
+        </button>
+        <button
+          onClick={handleResetGame}
+          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition-colors mt-4"
+        >
+          Сбросить игру
         </button>
       </div>
     </div>

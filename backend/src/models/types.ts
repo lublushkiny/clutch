@@ -18,12 +18,12 @@ export interface Match {
   scoreB: number;
   winnerId: string;
   bidPool: number;        // Сколько всего поинтов было на кону в этом матче
-  grandPrizeContribution: number; // 50% от ставки, ушедшие в пул Гран-при
+  superGameContribution: number; // 50% от ставки, ушедшие в пул Супер-игры
   timestamp: number;
 }
 
 export interface TournamentState {
   currentKingId: string | null;  // Кто сейчас на троне
-  grandPrizePool: number;        // Текущий размер пула Гран-при
+  superGamePool: number;        // Текущий размер пула Супер-игры
   queue: { playerId: string; bid: number }[]; // Очередь претендентов, отсортированная по bid
 }
