@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import type { Match } from '../../types';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // Augment Match type for the frontend
 interface FrontendMatch extends Match {
@@ -51,8 +51,16 @@ const MatchHistoryView = () => {
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className="font-mono text-lg">{match.playerABid} vs {match.playerBBid} <span className="text-sm text-gray-400">GAS</span></p>
-                                <p className="text-xs text-gray-500">(в супер-игру: {match.superGameContribution})</p>
+                                <p className="font-mono text-lg">
+                                    {match.playerABid ? `${match.playerABid} vs ` : ''}
+                                    {match.playerBBid ? match.playerBBid : ''}
+                                    <span className="text-sm text-gray-400"> GAS</span>
+                                </p>
+                                {match.jackpotWon ? (
+                                    <p className="text-xs text-green-400 font-bold">Супер-пул! (+{match.jackpotWon})</p>
+                                ) : (
+                                    <p className="text-xs text-gray-500">(в супер-пул: {match.superGameContribution})</p>
+                                )}
                             </div>
                         </div>
                     ))

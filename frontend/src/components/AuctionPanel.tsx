@@ -8,7 +8,7 @@ interface AuctionPanelProps {
   queue: { playerId: string; bid: number; name: string }[];
 }
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const AuctionPanel: React.FC<AuctionPanelProps> = ({ onBid, king, queue }) => {
   const [bidAmount, setBidAmount] = useState<number>(100);
@@ -48,6 +48,12 @@ const AuctionPanel: React.FC<AuctionPanelProps> = ({ onBid, king, queue }) => {
   }
   };
   
+  const handleBidChange = (amount: number) => {
+    if (!user) return;
+    const newBid = Math.max(100, Math.min(user.clutchPoints, bidAmount + amount));
+    setBidAmount(newBid);
+  };
+
   const isPlayerInQueue = user && queue.some(p => p.playerId === user.id);
 
   if (!user || user.isAdmin || user.id === king?.id || isPlayerInQueue) {
@@ -55,7 +61,21 @@ const AuctionPanel: React.FC<AuctionPanelProps> = ({ onBid, king, queue }) => {
   }
 
   return (
-    <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+    <div className="bg-gray-800 p-6 rounded-lg shadow-lg space-y-4">
+        <div className="flex items-center justify-center space-x-4">
+            <button onClick={() => handleBidChange(-100)} className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center text-lg">
+                -
+            </button>
+            <input 
+                type="number" 
+                value={bidAmount}
+                onChange={(e) => setBidAmount(parseInt(e.target.value, 10))}
+                className="w-24 text-center bg-gray-900 text-white font-bold text-2xl rounded-md"
+            />
+            <button onClick={() => handleBidChange(100)} className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full w-10 h-10 flex items-center justify-center text-lg">
+                +
+            </button>
+        </div>
         <button
           onClick={handleSubmit}
           disabled={isSubmitting || !user}

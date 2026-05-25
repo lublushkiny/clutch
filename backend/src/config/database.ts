@@ -42,6 +42,7 @@ export const getDb = async () => {
       bidPool INTEGER NOT NULL,
       playerABid INTEGER,
       playerBBid INTEGER,
+      jackpotWon BOOLEAN,
       timestamp INTEGER NOT NULL,
       FOREIGN KEY(playerAId) REFERENCES players(id),
       FOREIGN KEY(playerBId) REFERENCES players(id),
@@ -61,6 +62,11 @@ export const getDb = async () => {
   if (!playerTableInfo.some(col => col.name === 'isAdmin')) {
     console.log("Adding 'isAdmin' column to players table...");
     await db.exec("ALTER TABLE players ADD COLUMN isAdmin BOOLEAN NOT NULL DEFAULT 0");
+  }
+
+  if (!matchTableInfo.some(col => col.name === 'jackpotWon')) {
+    console.log("Adding 'jackpotWon' column to matches table...");
+    await db.exec("ALTER TABLE matches ADD COLUMN jackpotWon BOOLEAN");
   }
 
   // --- INITIAL STATE ---

@@ -27,6 +27,7 @@ export interface Match {
   winnerId: string;
   bidPool: number;
   superGameContribution: number;
+  jackpotWon?: number;
   timestamp: number;
 }
 

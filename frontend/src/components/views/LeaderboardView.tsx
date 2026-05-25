@@ -3,7 +3,7 @@ import axios from 'axios';
 import type { Player } from '../../types';
 import PlayerProfile from '../PlayerProfile';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const LeaderboardView = () => {
   const [players, setPlayers] = useState<Player[]>([]);

@@ -6,7 +6,7 @@ import AuctionPanel from '../AuctionPanel';
 import MatchModal from '../MatchModal'; // Import the new MatchModal component
 import { useAuth } from '../../contexts/AuthContext';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const QueueView = () => {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -21,12 +21,17 @@ const QueueView = () => {
         axios.get(`${API_URL}/players`),
         axios.get(`${API_URL}/state`)
       ]);
+      console.log("[DEBUG] fetchData received players:", playersRes.data);
       setPlayers(playersRes.data);
       setTournamentState(stateRes.data);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     }
   };
+
+  useEffect(() => {
+    console.log("[DEBUG] players state updated:", players);
+  }, [players]);
 
   useEffect(() => {
     fetchData();
@@ -61,10 +66,21 @@ const QueueView = () => {
 
   const handleMatchEnd = async (winnerId: string) => {
     try {
-        await axios.post(`${API_URL}/matches/resolve`, { winnerId });
+        const res = await axios.post(`${API_URL}/matches/resolve`, { winnerId });
+        console.log("[DEBUG] Match resolved, response:", res.data);
+        
+        // Обновляем данные победителя в контексте, если это текущий пользователь
+        if (res.data.winner && user && String(res.data.winner.id) === String(user.id)) {
+             updateUser(res.data.winner);
+        }
+        
         setIsMatchActive(false);
         setActiveMatchData(null);
-        fetchData(); // Refresh data after match ends
+        
+        // Добавляем небольшую задержку для гарантии завершения транзакции на бэкенде
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        await fetchData(); 
     } catch (error) {
         console.error("Failed to resolve match:", error);
         alert("Не удалось завершить матч.");

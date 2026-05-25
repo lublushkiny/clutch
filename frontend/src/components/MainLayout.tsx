@@ -23,7 +23,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, activeView, setActive
     React.useEffect(() => {
         const fetchState = async () => {
             try {
-                const res = await axios.get<TournamentState>('http://localhost:3001/api/state');
+                const res = await axios.get<TournamentState>(`${import.meta.env.VITE_API_URL}/state`);
                 setSuperGamePool(res.data.superGamePool);
             } catch (error) {
                 console.error("Failed to fetch tournament state for layout:", error);
