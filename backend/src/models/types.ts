@@ -9,11 +9,11 @@ export interface Player {
   totalSpent: number;
   maxStreak: number;
   currentStreak: number;
+  pointsScored: number;
+  pointsConceded: number;
   // Fields for detailed stats, to be calculated by a query
   matchesWon?: number;
   matchesLost?: number;
-  pointsScored?: number;
-  pointsConceded?: number;
 }
 
 export interface Match {

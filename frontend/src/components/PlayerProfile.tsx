@@ -15,9 +15,10 @@ const PlayerProfile: React.FC<PlayerProfileProps> = ({ players }) => {
               <thead>
                 <tr className="border-b border-gray-600">
                   <th className="p-2">Игрок</th>
-                  <th className="p-2 text-right">Заработано</th>
+                  <th className="p-2 text-right">Заб.</th>
+                  <th className="p-2 text-right">Проп.</th>
                   <th className="p-2 text-right">Баланс</th>
-                  <th className="p-2 text-right">Макс. серия</th></tr>
+                </tr>
               </thead>
               <tbody>
                 {players.map((player, index) => (
@@ -26,9 +27,9 @@ const PlayerProfile: React.FC<PlayerProfileProps> = ({ players }) => {
                       <span className="mr-2 text-gray-400">{index + 1}.</span>
                       {player.name}
                     </td>
-                    <td className="p-2 text-right font-mono text-orange-400">{player.totalEarned.toLocaleString()}</td>
+                    <td className="p-2 text-right font-mono text-green-400">{player.pointsScored}</td>
+                    <td className="p-2 text-right font-mono text-red-400">{player.pointsConceded}</td>
                     <td className="p-2 text-right font-mono">{player.clutchPoints.toLocaleString()}</td>
-                    <td className="p-2 text-right font-mono">{player.maxStreak} 🔥</td>
                   </tr>
                 ))}
               </tbody>

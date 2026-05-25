@@ -41,7 +41,7 @@ router.post('/admin/reset', authenticateToken, async (req, res) => {
     await db.run('BEGIN TRANSACTION');
 
     // 1. Reset all players' clutchPoints to 1000, and streaks to 0
-    await db.run('UPDATE players SET clutchPoints = 1000, currentStreak = 0, maxStreak = 0, totalEarned = 0, totalSpent = 0');
+    await db.run('UPDATE players SET clutchPoints = 1000, currentStreak = 0, maxStreak = 0, totalEarned = 0, totalSpent = 0, pointsScored = 0, pointsConceded = 0');
 
     // 2. Clear all match history
     await db.run('DELETE FROM matches');

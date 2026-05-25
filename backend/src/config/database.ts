@@ -29,7 +29,9 @@ export const getDb = async () => {
       totalEarned INTEGER NOT NULL DEFAULT 0,
       totalSpent INTEGER NOT NULL DEFAULT 0,
       maxStreak INTEGER NOT NULL DEFAULT 0,
-      currentStreak INTEGER NOT NULL DEFAULT 0
+      currentStreak INTEGER NOT NULL DEFAULT 0,
+      pointsScored INTEGER NOT NULL DEFAULT 0,
+      pointsConceded INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS matches (
@@ -62,6 +64,16 @@ export const getDb = async () => {
   if (!playerTableInfo.some(col => col.name === 'isAdmin')) {
     console.log("Adding 'isAdmin' column to players table...");
     await db.exec("ALTER TABLE players ADD COLUMN isAdmin BOOLEAN NOT NULL DEFAULT 0");
+  }
+
+  if (!playerTableInfo.some(col => col.name === 'pointsScored')) {
+    console.log("Adding 'pointsScored' column to players table...");
+    await db.exec("ALTER TABLE players ADD COLUMN pointsScored INTEGER NOT NULL DEFAULT 0");
+  }
+
+  if (!playerTableInfo.some(col => col.name === 'pointsConceded')) {
+    console.log("Adding 'pointsConceded' column to players table...");
+    await db.exec("ALTER TABLE players ADD COLUMN pointsConceded INTEGER NOT NULL DEFAULT 0");
   }
 
   if (!matchTableInfo.some(col => col.name === 'jackpotWon')) {

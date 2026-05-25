@@ -138,6 +138,18 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
             const winnerData = (winnerId === p1Data.id) ? p1Data : p2Data;
             const loserData = (winnerId === p1Data.id) ? p2Data : p1Data;
             
+            winnerData.pointsScored += 1;
+            loserData.pointsConceded += 1;
+            
+            await db.run(
+                'UPDATE players SET pointsScored = ?, pointsConceded = ? WHERE id = ?',
+                winnerData.pointsScored, winnerData.pointsConceded, winnerData.id
+            );
+            await db.run(
+                'UPDATE players SET pointsScored = ?, pointsConceded = ? WHERE id = ?',
+                loserData.pointsScored, loserData.pointsConceded, loserData.id
+            );
+            
             const bidPool = p1Queue.bid + p2Queue.bid;
             const superGameContribution = bidPool; // The entire pool goes to super game
 
@@ -212,6 +224,19 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
         let jackpotWonAmount = 0; // Amount for jackpot if won
         const loserId = (winnerId === currentKing.id) ? challengerPlayer.id : currentKing.id;
         const winner = (winnerId === currentKing.id) ? currentKing : challengerPlayer;
+        const loser = (winnerId === currentKing.id) ? challengerPlayer : currentKing;
+
+        winner.pointsScored += 1;
+        loser.pointsConceded += 1;
+
+        await db.run(
+            'UPDATE players SET pointsScored = ?, pointsConceded = ? WHERE id = ?',
+            winner.pointsScored, winner.pointsConceded, winner.id
+        );
+        await db.run(
+            'UPDATE players SET pointsScored = ?, pointsConceded = ? WHERE id = ?',
+            loser.pointsScored, loser.pointsConceded, loser.id
+        );
 
         if (winner.id === currentKing.id) { // King wins
             winner.currentStreak++;
