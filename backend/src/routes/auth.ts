@@ -42,11 +42,13 @@ router.post('/register', async (req, res) => {
       totalSpent: 0,
       maxStreak: 0,
       currentStreak: 0,
+      pointsScored: 0,
+      pointsConceded: 0,
     };
 
     await db.run(
-      `INSERT INTO players (id, name, telegram, password, clutchPoints, totalEarned, totalSpent, maxStreak, currentStreak)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO players (id, name, telegram, password, clutchPoints, totalEarned, totalSpent, maxStreak, currentStreak, pointsScored, pointsConceded)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       newPlayer.id,
       newPlayer.name,
       newPlayer.telegram,
@@ -55,7 +57,9 @@ router.post('/register', async (req, res) => {
       newPlayer.totalEarned,
       newPlayer.totalSpent,
       newPlayer.maxStreak,
-      newPlayer.currentStreak
+      newPlayer.currentStreak,
+      newPlayer.pointsScored,
+      newPlayer.pointsConceded
     );
 
     res.status(201).json({ message: 'Player registered successfully.' });
