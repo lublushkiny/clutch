@@ -13,45 +13,44 @@ const AppContent = () => {
     const [authMode, setAuthMode] = useState<'pending' | 'telegram' | 'manual'>('pending');
 
     useEffect(() => {
-        const handleTelegramAuth = () => {
-            const tg = window.Telegram.WebApp;
-            tg.ready();
+        const handleTelegramAuth = (webApp: TelegramWebApp) => {
+            webApp.ready();
             
-            axios.post('/api/auth/telegram', { initData: tg.initData })
+            axios.post('/api/auth/telegram', { initData: webApp.initData })
                 .then(response => {
                     const { token, player } = response.data;
                     login(token, player);
                 })
                 .catch(err => {
                     console.error("Telegram authentication failed:", err);
-                    // Optionally show an error to the user before closing
-                    tg.close();
+                    webApp.close();
                 });
         };
 
         const hash = window.location.hash;
-        // Check for Telegram-specific data in the URL hash
         if (hash.includes('tgWebAppData')) {
             setAuthMode('telegram');
             
-            // Check if script is already loaded
-            if (window.Telegram) {
-                handleTelegramAuth();
+            const tg = window.Telegram;
+            if (tg) {
+                handleTelegramAuth(tg.WebApp);
             } else {
-                // Dynamically inject the script
                 const script = document.createElement('script');
                 script.src = 'https://telegram.org/js/telegram-web-app.js';
                 script.async = true;
-                script.onload = handleTelegramAuth; // Authenticate after script loads
+                script.onload = () => {
+                    const loadedTg = window.Telegram;
+                    if (loadedTg) {
+                        handleTelegramAuth(loadedTg.WebApp);
+                    }
+                };
                 script.onerror = () => {
                     console.error("Failed to load Telegram script.");
-                    // Fallback or show error if script fails to load
                     setAuthMode('manual'); 
                 };
                 document.body.appendChild(script);
             }
         } else {
-            // Not in a Telegram environment
             setAuthMode('manual');
         }
     }, [login]);

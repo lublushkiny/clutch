@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import type { Player } from '../types';
 
 const navItems = [
   { id: 'leaderboard', label: 'Ладдер' },
