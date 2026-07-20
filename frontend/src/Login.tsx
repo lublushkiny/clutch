@@ -4,10 +4,6 @@ import { useAuth } from './contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL + '/auth';
 
-interface LoginProps {
-  onToggle: () => void;
-}
-
 const Login: React.FC = () => {
   const [telegram, setTelegram] = useState('');
   const [password, setPassword] = useState('');

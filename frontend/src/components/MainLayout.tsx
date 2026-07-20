@@ -1,7 +1,6 @@
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext'; // Need to get user balance
-import axios from 'axios';
-import type { TournamentState } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import type { Player } from '../types';
 
 const navItems = [
   { id: 'leaderboard', label: 'Ладдер' },
