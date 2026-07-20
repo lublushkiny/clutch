@@ -7,10 +7,7 @@
     },
     {
       "src": "frontend/package.json",
-      "use": "@vercel/vite",
-      "options": {
-        "outputDirectory": "dist"
-      }
+      "use": "@vercel/vite"
     }
   ],
   "rewrites": [
