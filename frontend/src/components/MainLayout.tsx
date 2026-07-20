@@ -4,9 +4,8 @@ import axios from 'axios';
 import type { TournamentState } from '../types';
 
 const navItems = [
-  { id: 'queue', label: 'Очередь' },
-  { id: 'leaderboard', label: 'Лидеры' },
-  { id: 'history', label: 'История' },
+  { id: 'leaderboard', label: 'Ладдер' },
+  { id: 'history', label: 'Матчи' },
   { id: 'account', label: 'Аккаунт' },
 ];
 

@@ -1,24 +1,42 @@
 export interface Player {
-  id: string;             // Уникальный ID (или Telegram ID)
+  id: string;
   name: string;
   telegram: string;
-  password?: string; // Made optional to avoid breaking changes everywhere at once
-  clutchPoints: number;   // Текущий баланс очков для ставок
-  totalEarned: number;    // Всего заработано (метрика эффективности)
-  totalSpent: number;     // Всего сожжено на аукционах
-  maxStreak: number;      // Лучшая серия побед
-  currentStreak: number;  // Текущая серия (для триггера Гран-при)
+  password?: string;
+  isAdmin?: boolean;
+  clutchPoints: number;
+  totalEarned: number;
+  totalSpent: number;
+  maxStreak: number;
+  currentStreak: number;
+  matchesWon: number;
+  matchesLost: number;
+  pointsScored: number;
+  pointsConceded: number;
+}
+
+export interface Challenge {
+  id: string;
+  challengerId: string;
+  opponentId: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  timestamp: number;
+  challengerName?: string; // Optional, for incoming challenges
+  opponentName?: string;   // Optional, for outgoing challenges
 }
 
 export interface Match {
   id: string;
   playerAId: string;
   playerBId: string;
-  scoreA: number;
-  scoreB: number;
-  winnerId: string;
-  bidPool: number;        // Сколько всего поинтов было на кону в этом матче
-  grandPrizeContribution: number; // 50% от ставки, ушедшие в пул Гран-при
+  scoreA: number | null;
+  scoreB: number | null;
+  winnerId: string | null;
+  status: 'live' | 'completed';
+  bidPool: number | null;
+  playerABid: number | null;
+  playerBBid: number | null;
+  jackpotWon: boolean | null;
   timestamp: number;
 }
 

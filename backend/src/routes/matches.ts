@@ -2,21 +2,8 @@ import { Router } from 'express';
 import { Match, Player } from '../models/types';
 import { randomUUID } from 'crypto';
 import { authenticateToken } from '../middleware/authMiddleware';
-import { getTournamentState, updateTournamentState } from '../utils/tournamentState';
 
 const router = Router();
-
-// GET current tournament state
-router.get('/state', async (req, res) => {
-  try {
-    const db = req.db!;
-    const state = await getTournamentState(db);
-    res.json(state);
-  } catch (error) {
-    console.error('Failed to get tournament state:', error);
-    res.status(500).json({ message: 'Failed to retrieve tournament state' });
-  }
-});
 
 // GET all matches
 router.get('/matches', authenticateToken, async (req, res) => {
@@ -30,7 +17,7 @@ router.get('/matches', authenticateToken, async (req, res) => {
         FROM matches m
         JOIN players p_a ON m.playerAId = p_a.id
         JOIN players p_b ON m.playerBId = p_b.id
-        ORDER BY m.timestamp DESC
+        ORDER BY m.status, m.timestamp DESC
       `);
       res.json(matches);
     } catch (error) {
@@ -39,255 +26,60 @@ router.get('/matches', authenticateToken, async (req, res) => {
     }
 });
 
-
-// POST /api/auction/bid — Игрок тратит X поинтов.
-router.post('/auction/bid', authenticateToken, async (req, res) => {
-  const { bid } = req.body;
-  const playerId = req.user?.id;
-  let db = req.db!;
-
-  if (!playerId || !bid) {
-    return res.status(400).json({ message: 'Bid amount is required' });
-  }
-
-  try {
-    await db.run('BEGIN TRANSACTION');
-
-    const player = await db.get<Player>('SELECT * FROM players WHERE id = ?', playerId);
-    if (!player) {
-      await db.run('ROLLBACK');
-      return res.status(404).json({ message: 'Player not found' });
-    }
-    if(player.isAdmin) {
-        await db.run('ROLLBACK');
-        return res.status(403).json({ message: 'Admins cannot place bids.' });
-    }
-    if (player.clutchPoints < bid) {
-      await db.run('ROLLBACK');
-      return res.status(400).json({ message: 'Insufficient clutch points' });
-    }
-
-    const newClutchPoints = player.clutchPoints - bid;
-    const newTotalSpent = player.totalSpent + bid;
-    await db.run('UPDATE players SET clutchPoints = ?, totalSpent = ? WHERE id = ?', newClutchPoints, newTotalSpent, playerId);
-
-    const state = await getTournamentState(db);
-
-    if (state.currentKingId === playerId) {
-        await db.run('ROLLBACK');
-        return res.status(400).json({ message: 'King cannot join the queue.' });
-    }
-
-    if (state.queue.some(p => p.playerId === playerId)) {
-        await db.run('ROLLBACK');
-        return res.status(400).json({ message: 'Player is already in the queue.' });
-    }
-
-    state.queue.push({ playerId, bid });
-    state.queue.sort((a, b) => b.bid - a.bid);
-    await updateTournamentState(db, state);
-
-    await db.run('COMMIT');
-    res.status(200).json(state);
-  } catch (error) {
-    if (db) {
-      await db.run('ROLLBACK');
-    }
-    console.error('Failed to process bid:', error);
-    res.status(500).json({ message: 'Failed to process bid' });
-  }
-});
-
-// POST /api/matches/resolve — Фиксация результата матча
+// POST /api/matches/resolve - Завершение матча участником или админом
 router.post('/matches/resolve', authenticateToken, async (req, res) => {
-    const user = await req.db!.get<Player>('SELECT * FROM players WHERE id = ?', req.user!.id);
-    if (!user || !user.isAdmin) {
-        return res.status(403).json({ message: 'Only admins can resolve matches.' });
+    const { matchId, scoreA, scoreB, videoUrl } = req.body;
+    if (!matchId || typeof scoreA !== 'number' || typeof scoreB !== 'number' || scoreA === scoreB) {
+        return res.status(400).json({ message: 'Match ID and distinct scores for A and B are required.' });
     }
 
-    const { winnerId } = req.body;
-    let db = req.db!;
-    if (!winnerId) {
-        return res.status(400).json({ message: 'Winner ID is required' });
-    }
-
+    const db = req.db!;
     try {
         await db.run('BEGIN TRANSACTION');
-        let state = await getTournamentState(db);
-        const currentKing = await db.get<Player>('SELECT * FROM players WHERE id = ?', state.currentKingId);
 
-        if (state.queue.length === 0) {
-            return res.status(400).json({ message: 'No challenger in the queue' });
+        const match = await db.get<Match>(`SELECT * FROM matches WHERE id = ? AND status = 'live'`, matchId);
+        if (!match) {
+            await db.run('ROLLBACK');
+            return res.status(404).json({ message: 'Live match not found.' });
         }
 
-        // Case 1: No king, battle for the throne (Winner gets nothing, entire bid pool to Super Game)
-        if (!currentKing) {
-            if (state.queue.length < 2) {
-                return res.status(400).json({ message: 'Not enough challengers to determine a new king.' });
-            }
-            const p1Queue = state.queue.shift()!;
-            const p2Queue = state.queue.shift()!;
-            
-            const p1Data = await db.get<Player>('SELECT * FROM players WHERE id = ?', p1Queue.playerId);
-            const p2Data = await db.get<Player>('SELECT * FROM players WHERE id = ?', p2Queue.playerId);
+        const authedUserId = req.user!.id;
+        const adminUser = await db.get<Player>('SELECT isAdmin FROM players WHERE id = ?', authedUserId);
+        const isParticipant = authedUserId === match.playerAId || authedUserId === match.playerBId;
 
-            if (!p1Data || !p2Data) {
-                throw new Error('Challenger data not found');
-            }
-
-            const winnerData = (winnerId === p1Data.id) ? p1Data : p2Data;
-            const loserData = (winnerId === p1Data.id) ? p2Data : p1Data;
-            
-            winnerData.pointsScored += 1;
-            loserData.pointsConceded += 1;
-            
-            await db.run(
-                'UPDATE players SET pointsScored = ?, pointsConceded = ? WHERE id = ?',
-                winnerData.pointsScored, winnerData.pointsConceded, winnerData.id
-            );
-            await db.run(
-                'UPDATE players SET pointsScored = ?, pointsConceded = ? WHERE id = ?',
-                loserData.pointsScored, loserData.pointsConceded, loserData.id
-            );
-            
-            const bidPool = p1Queue.bid + p2Queue.bid;
-            const superGameContribution = bidPool; // The entire pool goes to super game
-
-            state.superGamePool += superGameContribution;
-            console.log(`[DEBUG] Case 1 (Throne Battle): superGameContribution=${superGameContribution}, state.superGamePool=${state.superGamePool}`);
-            
-            // Winner becomes king, but gets no reward from this match
-            // Only update currentStreak and maxStreak, points remain unchanged
-            winnerData.currentStreak = 1;
-            if (winnerData.currentStreak > winnerData.maxStreak) {
-                winnerData.maxStreak = winnerData.currentStreak;
-            }
-            await db.run(
-                'UPDATE players SET currentStreak = ?, maxStreak = ? WHERE id = ?',
-                winnerData.currentStreak, winnerData.maxStreak, winnerData.id
-            );
-
-            state.currentKingId = winnerId;
-            state.queue = state.queue.filter(p => p.playerId !== winnerData.id && p.playerId !== loserData.id);
-            
-            const match: Match = {
-                id: randomUUID(),
-                playerAId: p1Data.id,
-                playerBId: p2Data.id,
-                playerABid: p1Queue.bid,
-                playerBBid: p2Queue.bid,
-                scoreA: winnerId === p1Data.id ? 1 : 0,
-                scoreB: winnerId === p2Data.id ? 1 : 0,
-                winnerId,
-                bidPool,
-                superGameContribution,
-                jackpotWon: 0, // No jackpot won in this scenario
-                timestamp: Date.now(),
-            };
-            await db.run(
-                `INSERT INTO matches (id, playerAId, playerBId, playerABid, playerBBid, scoreA, scoreB, winnerId, bidPool, superGameContribution, jackpotWon, timestamp)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                match.id, match.playerAId, match.playerBId, match.playerABid, match.playerBBid, match.scoreA, match.scoreB, match.winnerId, match.bidPool, match.superGameContribution, match.jackpotWon, match.timestamp
-            );
-
-            await updateTournamentState(db, state);
-            await db.run('COMMIT');
-
-            const { password: _, ...winnerWithoutPassword } = winnerData;
-            return res.status(200).json({ message: `${winnerData.name} is the new King!`, newState: state, winner: winnerWithoutPassword });
+        if (!adminUser?.isAdmin && !isParticipant) {
+            await db.run('ROLLBACK');
+            return res.status(403).json({ message: 'You are not authorized to resolve this match.' });
         }
 
-        // Case 2: King vs Challenger
-        const challengerQueue = state.queue.shift()!;
-        const challengerPlayer = await db.get<Player>('SELECT * FROM players WHERE id = ?', challengerQueue.playerId);
+        const winnerId = scoreA > scoreB ? match.playerAId : match.playerBId;
+        const loserId = scoreA > scoreB ? match.playerBId : match.playerAId;
 
-        if (!challengerPlayer) {
-            throw new Error('Challenger not found');
+        const winner = await db.get<Player>('SELECT * FROM players WHERE id = ?', winnerId);
+        const loser = await db.get<Player>('SELECT * FROM players WHERE id = ?', loserId);
+
+        if (!winner || !loser) {
+            throw new Error('Match participants not found');
         }
 
-        const bidPool = challengerQueue.bid;
-        const kingReward = Math.floor(bidPool * 0.5); // King always gets half the challenger's bid
-        const superGameContribution = bidPool - kingReward;
+        const winnerScore = scoreA > scoreB ? scoreA : scoreB;
+        const loserScore = scoreA > scoreB ? scoreB : scoreA;
 
-        // Give currentKing their reward immediately
-        currentKing.clutchPoints += kingReward;
-        currentKing.totalEarned += kingReward;
-        state.superGamePool += superGameContribution;
-        
-        console.log(`[DEBUG] Case 2: kingReward=${kingReward}, superGameContribution=${superGameContribution}, state.superGamePool_before_jackpot_check=${state.superGamePool}`);
+        winner.matchesWon = (winner.matchesWon || 0) + 1;
+        winner.pointsScored = (winner.pointsScored || 0) + winnerScore;
+        winner.pointsConceded = (winner.pointsConceded || 0) + loserScore;
 
-        await db.run(
-            'UPDATE players SET clutchPoints = ?, totalEarned = ? WHERE id = ?',
-            currentKing.clutchPoints, currentKing.totalEarned, currentKing.id
-        );
+        loser.matchesLost = (loser.matchesLost || 0) + 1;
+        loser.pointsScored = (loser.pointsScored || 0) + loserScore;
+        loser.pointsConceded = (loser.pointsConceded || 0) + winnerScore;
 
-        let jackpotWonAmount = 0; // Amount for jackpot if won
-        const loserId = (winnerId === currentKing.id) ? challengerPlayer.id : currentKing.id;
-        const winner = (winnerId === currentKing.id) ? currentKing : challengerPlayer;
-        const loser = (winnerId === currentKing.id) ? challengerPlayer : currentKing;
+        await db.run('UPDATE players SET matchesWon = ?, pointsScored = ?, pointsConceded = ? WHERE id = ?', winner.matchesWon, winner.pointsScored, winner.pointsConceded, winner.id);
+        await db.run('UPDATE players SET matchesLost = ?, pointsScored = ?, pointsConceded = ? WHERE id = ?', loser.matchesLost, loser.pointsScored, loser.pointsConceded, loser.id);
 
-        winner.pointsScored += 1;
-        loser.pointsConceded += 1;
+        await db.run(`UPDATE matches SET status = 'completed', scoreA = ?, scoreB = ?, winnerId = ?, videoUrl = ? WHERE id = ?`, scoreA, scoreB, winnerId, videoUrl || null, matchId);
 
-        await db.run(
-            'UPDATE players SET pointsScored = ?, pointsConceded = ? WHERE id = ?',
-            winner.pointsScored, winner.pointsConceded, winner.id
-        );
-        await db.run(
-            'UPDATE players SET pointsScored = ?, pointsConceded = ? WHERE id = ?',
-            loser.pointsScored, loser.pointsConceded, loser.id
-        );
-
-        if (winner.id === currentKing.id) { // King wins
-            winner.currentStreak++;
-             if (winner.currentStreak > 0 && winner.currentStreak % 3 === 0) {
-                jackpotWonAmount = state.superGamePool; // Capture the amount BEFORE resetting
-                winner.clutchPoints += jackpotWonAmount;
-                winner.totalEarned += jackpotWonAmount;
-                state.superGamePool = 0;
-                console.log(`[DEBUG] Jackpot won: ${jackpotWonAmount}, winner.clutchPoints=${winner.clutchPoints}`);
-            }
-        } else { // Challenger wins and becomes new king
-            await db.run('UPDATE players SET currentStreak = 0 WHERE id = ?', currentKing.id); // Reset old king's streak
-            winner.currentStreak = 1;
-            state.currentKingId = winner.id;
-        }
-
-        if (winner.currentStreak > winner.maxStreak) {
-            winner.maxStreak = winner.currentStreak;
-        }
-
-        await db.run(
-            'UPDATE players SET currentStreak = ?, maxStreak = ? WHERE id = ?',
-            winner.currentStreak, winner.maxStreak, winner.id
-        );
-        
-        state.queue = state.queue.filter(p => p.playerId !== loserId);
-        
-        const match: Match = {
-            id: randomUUID(),
-            playerAId: currentKing.id,
-            playerBId: challengerPlayer.id,
-            playerABid: 0, // King doesn't bid
-            playerBBid: challengerQueue.bid,
-            scoreA: winnerId === currentKing.id ? 1 : 0,
-            scoreB: winnerId === challengerPlayer.id ? 1 : 0,
-            winnerId,
-            bidPool,
-            superGameContribution,
-            jackpotWon: jackpotWonAmount, // Use the captured amount
-            timestamp: Date.now(),
-        };
-         await db.run(
-            `INSERT INTO matches (id, playerAId, playerBId, playerABid, playerBBid, scoreA, scoreB, winnerId, bidPool, superGameContribution, jackpotWon, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            match.id, match.playerAId, match.playerBId, match.playerABid, match.playerBBid, match.scoreA, match.scoreB, match.winnerId, match.bidPool, match.superGameContribution, match.jackpotWon, match.timestamp
-        );
-        await updateTournamentState(db, state);
         await db.run('COMMIT');
-
-        const { password: _, ...winnerWithoutPassword } = winner;
-        res.json({ message: `Match resolved. Winner: ${winner.name}.`, winner: winnerWithoutPassword });
+        res.status(200).json({ message: `Match completed. Winner: ${winner.name}` });
 
     } catch (error) {
         if (db) await db.run('ROLLBACK');
@@ -295,5 +87,81 @@ router.post('/matches/resolve', authenticateToken, async (req, res) => {
         res.status(500).json({ message: 'Failed to resolve match' });
     }
 });
+
+// PUT /api/matches/edit - Редактирование матча админом
+router.put('/matches/edit', authenticateToken, async (req, res) => {
+    // 1. Authorization: Admin only
+    const adminUser = await req.db!.get<Player>('SELECT isAdmin FROM players WHERE id = ?', req.user!.id);
+    if (!adminUser?.isAdmin) {
+        return res.status(403).json({ message: 'Only admins can edit matches.' });
+    }
+
+    // 2. Input validation
+    const { matchId, scoreA, scoreB, videoUrl } = req.body;
+    if (!matchId || typeof scoreA !== 'number' || typeof scoreB !== 'number' || scoreA === scoreB) {
+        return res.status(400).json({ message: 'Match ID and distinct scores for A and B are required.' });
+    }
+
+    const db = req.db!;
+    try {
+        await db.run('BEGIN TRANSACTION');
+
+        // 3. Find the COMPLETED match
+        const oldMatch = await db.get<Match>(`SELECT * FROM matches WHERE id = ? AND status = 'completed'`, matchId);
+        if (!oldMatch) {
+            await db.run('ROLLBACK');
+            return res.status(404).json({ message: 'Completed match not found.' });
+        }
+
+        // 4. Get player data
+        const playerA = await db.get<Player>('SELECT * FROM players WHERE id = ?', oldMatch.playerAId);
+        const playerB = await db.get<Player>('SELECT * FROM players WHERE id = ?', oldMatch.playerBId);
+        if(!playerA || !playerB) throw new Error('Player not found for stat recalculation');
+
+        // 5. Revert old stats
+        const oldWinnerId = oldMatch.scoreA! > oldMatch.scoreB! ? oldMatch.playerAId : oldMatch.playerBId;
+        if (oldWinnerId === playerA.id) {
+            playerA.matchesWon -= 1;
+            playerB.matchesLost -= 1;
+        } else {
+            playerB.matchesWon -= 1;
+            playerA.matchesLost -= 1;
+        }
+        playerA.pointsScored -= oldMatch.scoreA!;
+        playerA.pointsConceded -= oldMatch.scoreB!;
+        playerB.pointsScored -= oldMatch.scoreB!;
+        playerB.pointsConceded -= oldMatch.scoreA!;
+
+        // 6. Apply new stats
+        const newWinnerId = scoreA > scoreB ? playerA.id : playerB.id;
+        if (newWinnerId === playerA.id) {
+            playerA.matchesWon += 1;
+            playerB.matchesLost += 1;
+        } else {
+            playerB.matchesWon += 1;
+            playerA.matchesLost += 1;
+        }
+        playerA.pointsScored += scoreA;
+        playerA.pointsConceded += scoreB;
+        playerB.pointsScored += scoreB;
+        playerB.pointsConceded += scoreA;
+
+        // 7. Update player records in DB
+        await db.run('UPDATE players SET matchesWon = ?, matchesLost = ?, pointsScored = ?, pointsConceded = ? WHERE id = ?', playerA.matchesWon, playerA.matchesLost, playerA.pointsScored, playerA.pointsConceded, playerA.id);
+        await db.run('UPDATE players SET matchesWon = ?, matchesLost = ?, pointsScored = ?, pointsConceded = ? WHERE id = ?', playerB.matchesWon, playerB.matchesLost, playerB.pointsScored, playerB.pointsConceded, playerB.id);
+
+        // 8. Update match record
+        await db.run(`UPDATE matches SET scoreA = ?, scoreB = ?, winnerId = ?, videoUrl = ? WHERE id = ?`, scoreA, scoreB, newWinnerId, videoUrl || null, matchId);
+
+        await db.run('COMMIT');
+        res.status(200).json({ message: 'Match successfully edited.' });
+
+    } catch (error) {
+        if (db) await db.run('ROLLBACK');
+        console.error('Failed to edit match:', error);
+        res.status(500).json({ message: 'Failed to edit match' });
+    }
+});
+
 
 export default router;

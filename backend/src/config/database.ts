@@ -38,22 +38,45 @@ export const getDb = async () => {
       id TEXT PRIMARY KEY,
       playerAId TEXT NOT NULL,
       playerBId TEXT NOT NULL,
-      scoreA INTEGER NOT NULL,
-      scoreB INTEGER NOT NULL,
-      winnerId TEXT NOT NULL,
-      bidPool INTEGER NOT NULL,
+      scoreA INTEGER,
+      scoreB INTEGER,
+      winnerId TEXT,
+      status TEXT NOT NULL DEFAULT 'upcoming', -- upcoming, live, completed
+      bidPool INTEGER,
       playerABid INTEGER,
       playerBBid INTEGER,
       jackpotWon BOOLEAN,
+      videoUrl TEXT,
       timestamp INTEGER NOT NULL,
       FOREIGN KEY(playerAId) REFERENCES players(id),
       FOREIGN KEY(playerBId) REFERENCES players(id),
       FOREIGN KEY(winnerId) REFERENCES players(id)
     );
 
+    CREATE TABLE IF NOT EXISTS challenges (
+      id TEXT PRIMARY KEY,
+      challengerId TEXT NOT NULL,
+      opponentId TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending, accepted, rejected
+      timestamp INTEGER NOT NULL,
+      FOREIGN KEY(challengerId) REFERENCES players(id),
+      FOREIGN KEY(opponentId) REFERENCES players(id)
+    );
+
     CREATE TABLE IF NOT EXISTS system_state (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS gas_logs (
+      id TEXT PRIMARY KEY,
+      fromPlayerId TEXT NOT NULL,
+      toPlayerId TEXT NOT NULL,
+      bidAmount INTEGER NOT NULL,
+      commissionAmount INTEGER NOT NULL,
+      timestamp INTEGER NOT NULL,
+      FOREIGN KEY(fromPlayerId) REFERENCES players(id),
+      FOREIGN KEY(toPlayerId) REFERENCES players(id)
     );
   `);
 
@@ -79,6 +102,21 @@ export const getDb = async () => {
   if (!matchTableInfo.some(col => col.name === 'jackpotWon')) {
     console.log("Adding 'jackpotWon' column to matches table...");
     await db.exec("ALTER TABLE matches ADD COLUMN jackpotWon BOOLEAN");
+  }
+
+  if (!playerTableInfo.some(col => col.name === 'matchesWon')) {
+    console.log("Adding 'matchesWon' column to players table...");
+    await db.exec("ALTER TABLE players ADD COLUMN matchesWon INTEGER NOT NULL DEFAULT 0");
+  }
+
+  if (!playerTableInfo.some(col => col.name === 'matchesLost')) {
+    console.log("Adding 'matchesLost' column to players table...");
+    await db.exec("ALTER TABLE players ADD COLUMN matchesLost INTEGER NOT NULL DEFAULT 0");
+  }
+  
+  if (!matchTableInfo.some(col => col.name === 'videoUrl')) {
+    console.log("Adding 'videoUrl' column to matches table...");
+    await db.exec("ALTER TABLE matches ADD COLUMN videoUrl TEXT");
   }
 
   // --- INITIAL STATE ---

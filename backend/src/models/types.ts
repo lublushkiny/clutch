@@ -11,23 +11,23 @@ export interface Player {
   currentStreak: number;
   pointsScored: number;
   pointsConceded: number;
-  // Fields for detailed stats, to be calculated by a query
-  matchesWon?: number;
-  matchesLost?: number;
+  matchesWon: number;
+  matchesLost: number;
 }
 
 export interface Match {
   id: string;
   playerAId: string;
   playerBId: string;
-  playerABid?: number; // Add bid info to match
-  playerBBid?: number; // Add bid info to match
-  scoreA: number;
-  scoreB: number;
-  winnerId: string;
-  bidPool: number;
-  superGameContribution: number;
-  jackpotWon?: number;
+  scoreA: number | null;
+  scoreB: number | null;
+  winnerId: string | null;
+  status: 'live' | 'completed';
+  bidPool: number | null;
+  playerABid: number | null;
+  playerBBid: number | null;
+  jackpotWon: boolean | null;
+  videoUrl: string | null;
   timestamp: number;
 }
 

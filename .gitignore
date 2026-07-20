@@ -1,0 +1,19 @@
+# Node
+node_modules/
+dist/
+.env
+
+# Database
+backend/database.db
+*.sqlite
+
+# Archive
+frontend/src_archive/
+
+# Logs
+*.log
+
+# Editor directories and files
+.vscode/
+.idea/
+.DS_Store

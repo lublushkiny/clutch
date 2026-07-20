@@ -32,7 +32,7 @@ router.post('/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    const newPlayer: Omit<Player, 'id'> & { id: string } = {
+    const newPlayer: Player = {
       id: randomUUID(),
       name,
       telegram: cleanTelegram,
@@ -44,11 +44,13 @@ router.post('/register', async (req, res) => {
       currentStreak: 0,
       pointsScored: 0,
       pointsConceded: 0,
+      matchesWon: 0,
+      matchesLost: 0,
     };
 
     await db.run(
-      `INSERT INTO players (id, name, telegram, password, clutchPoints, totalEarned, totalSpent, maxStreak, currentStreak, pointsScored, pointsConceded)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO players (id, name, telegram, password, clutchPoints, totalEarned, totalSpent, maxStreak, currentStreak, pointsScored, pointsConceded, matchesWon, matchesLost)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       newPlayer.id,
       newPlayer.name,
       newPlayer.telegram,
@@ -59,7 +61,9 @@ router.post('/register', async (req, res) => {
       newPlayer.maxStreak,
       newPlayer.currentStreak,
       newPlayer.pointsScored,
-      newPlayer.pointsConceded
+      newPlayer.pointsConceded,
+      newPlayer.matchesWon,
+      newPlayer.matchesLost
     );
 
     res.status(201).json({ message: 'Player registered successfully.' });

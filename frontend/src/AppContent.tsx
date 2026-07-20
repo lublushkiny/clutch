@@ -11,21 +11,19 @@ import AccountView from './components/views/AccountView';
 // This component contains the main logic after auth is checked
 const AppContent = () => {
     const { isAuthenticated } = useAuth();
-    const [activeView, setActiveView] = useState('queue');
+    const [activeView, setActiveView] = useState('leaderboard');
     const [showRegister, setShowRegister] = useState(false);
 
     const renderView = () => {
         switch (activeView) {
-            case 'queue':
-                return <QueueView />;
             case 'leaderboard':
-                return <LeaderboardView />;
+                return <LeaderboardView setActiveView={setActiveView} />;
             case 'history':
                 return <MatchHistoryView />;
             case 'account':
                 return <AccountView />;
             default:
-                return <QueueView />;
+                return <LeaderboardView setActiveView={setActiveView} />;
         }
     };
 

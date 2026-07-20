@@ -7,7 +7,7 @@ interface MatchModalProps {
     player2: Player;
     matchType: 'king_vs_challenger' | 'challenger_vs_challenger';
     onClose: () => void;
-    onMatchEnd: (winnerId: string) => Promise<void>;
+    onMatchEnd: (result: { winnerId: string; score1: number; score2: number; }) => Promise<void>;
 }
 
 const MatchModal: React.FC<MatchModalProps> = ({ player1, player2, matchType, onClose, onMatchEnd }) => {
@@ -30,7 +30,7 @@ const MatchModal: React.FC<MatchModalProps> = ({ player1, player2, matchType, on
         }
 
         try {
-            await onMatchEnd(winnerId);
+            await onMatchEnd({ winnerId, score1: player1Score, score2: player2Score });
         } catch (error) {
             // Error handling is already in onMatchEnd
         } finally {

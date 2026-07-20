@@ -1,35 +1,24 @@
-import React, { useEffect } from 'react';
-import axios from 'axios';
+import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import axios from 'axios';
+import { ChallengesView } from '../ChallengesView';
 
 const AccountView: React.FC = () => {
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout } = useAuth();
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      if (user) {
-        try {
-          const res = await axios.get(`${API_URL}/players/${user.id}`);
-          updateUser(res.data);
-        } catch (error) {
-          console.error("Failed to fetch user data:", error);
-        }
-      }
-    };
-    fetchUser();
-  }, []); // Run only on initial mount, subsequent updates will come from other components
+  const handleResetLeague = async () => {
+    const isConfirmed = window.confirm(
+      'Вы уверены, что хотите перезапустить лигу? Это действие необратимо и сбросит всю статистику, историю матчей и очки.'
+    );
 
-  const handleResetGame = async () => {
-    if (window.confirm('Вы уверены, что хотите сбросить игру? Все очки игроков, история матчей и очередь будут очищены.')) {
+    if (isConfirmed) {
       try {
-        await axios.post(`${API_URL}/admin/reset`);
-        alert('Игра успешно сброшена!');
-        logout(); // Force logout to clear state and re-authenticate
-      } catch (error) {
-        console.error('Failed to reset game:', error);
-        alert('Не удалось сбросить игру.');
+        const response = await axios.post('/api/admin/reset');
+        alert(response.data.message || 'Лига успешно перезапущена!');
+        window.location.reload(); // Перезагружаем страницу, чтобы отразить изменения
+      } catch (error: any) {
+        const errorMessage = error.response?.data?.message || 'Произошла ошибка при перезапуске лиги.';
+        alert(`Ошибка: ${errorMessage}`);
       }
     }
   };
@@ -50,23 +39,30 @@ const AccountView: React.FC = () => {
           <label className="block text-sm text-gray-400">Telegram</label>
           <p className="text-xl">{user.telegram}</p>
         </div>
-        <div>
-          <label className="block text-sm text-gray-400">Баланс</label>
-          <p className="text-xl font-mono">{user.clutchPoints.toLocaleString()} GAS</p>
-        </div>
         <button
           onClick={logout}
           className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-md transition-colors mt-4"
         >
           Выйти
         </button>
-        <button
-          onClick={handleResetGame}
-          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition-colors mt-4"
-        >
-          Сбросить игру
-        </button>
       </div>
+
+      <div className="mt-8">
+        <ChallengesView />
+      </div>
+
+      {user.isAdmin && (
+        <div className="mt-8 bg-red-900/50 rounded-lg p-6">
+            <h2 className="text-2xl font-bold text-center mb-4 text-red-300">Админ-панель</h2>
+            <p className="text-center text-gray-400 mb-4">Это действие необратимо. Будьте осторожны.</p>
+            <button
+                onClick={handleResetLeague}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-md transition-colors"
+            >
+                Рестарт лиги
+            </button>
+        </div>
+      )}
     </div>
   );
 };
