@@ -70,7 +70,8 @@ const MatchHistoryView = () => {
                                 </div>
                                 {resolvingMatchId === match.id && (
                                     <MatchResolutionForm 
-                                        matchId={match.id}
+                                        match={match}
+                                        mode="resolve"
                                         playerAName={match.playerAName}
                                         playerBName={match.playerBName}
                                         onComplete={() => {

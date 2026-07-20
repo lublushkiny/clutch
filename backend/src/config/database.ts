@@ -1,151 +1,120 @@
-import { open } from 'sqlite';
-import sqlite3 from 'sqlite3';
-import path from 'path';
+import dotenv from 'dotenv';
+import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 
-// Singleton instance of the database
-let dbInstance: Awaited<ReturnType<typeof open>> | null = null;
+// By default, dotenv looks for .env in the current working directory.
+// The `npm run dev` script is run from /backend, so it will find /backend/.env
+dotenv.config();
 
-export const getDb = async () => {
-  if (dbInstance) {
-    return dbInstance;
-  }
+// Critical check to ensure the environment variable is loaded.
+if (!process.env.DATABASE_URL) {
+    console.error("FATAL ERROR: DATABASE_URL is not defined.");
+    console.error("Please ensure you have a .env file in the /backend directory with the DATABASE_URL from Vercel.");
+    process.exit(1);
+}
 
-  const dbPath = path.resolve(__dirname, '../../database.db');
-  const db = await open({
-    filename: dbPath,
-    driver: sqlite3.Database,
-  });
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    // Vercel Postgres requires SSL, but does not allow self-signed certificates
+    ssl: {
+        rejectUnauthorized: false
+    }
+});
 
-  // --- SCHEMA INITIALIZATION ---
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS players (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      telegram TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      isAdmin BOOLEAN NOT NULL DEFAULT 0,
-      clutchPoints INTEGER NOT NULL DEFAULT 0,
-      totalEarned INTEGER NOT NULL DEFAULT 0,
-      totalSpent INTEGER NOT NULL DEFAULT 0,
-      maxStreak INTEGER NOT NULL DEFAULT 0,
-      currentStreak INTEGER NOT NULL DEFAULT 0,
-      pointsScored INTEGER NOT NULL DEFAULT 0,
-      pointsConceded INTEGER NOT NULL DEFAULT 0
-    );
+const initializeSchema = async () => {
+    // Note: In Postgres, table and column names are case-insensitive unless quoted.
+    // To preserve camelCase from the original SQLite schema, we quote them.
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS players (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            telegram TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            "isAdmin" BOOLEAN NOT NULL DEFAULT false,
+            "clutchPoints" INTEGER NOT NULL DEFAULT 0,
+            "totalEarned" INTEGER NOT NULL DEFAULT 0,
+            "totalSpent" INTEGER NOT NULL DEFAULT 0,
+            "maxStreak" INTEGER NOT NULL DEFAULT 0,
+            "currentStreak" INTEGER NOT NULL DEFAULT 0,
+            "pointsScored" INTEGER NOT NULL DEFAULT 0,
+            "pointsConceded" INTEGER NOT NULL DEFAULT 0,
+            "matchesWon" INTEGER NOT NULL DEFAULT 0,
+            "matchesLost" INTEGER NOT NULL DEFAULT 0
+        );
+    `);
 
-    CREATE TABLE IF NOT EXISTS matches (
-      id TEXT PRIMARY KEY,
-      playerAId TEXT NOT NULL,
-      playerBId TEXT NOT NULL,
-      scoreA INTEGER,
-      scoreB INTEGER,
-      winnerId TEXT,
-      status TEXT NOT NULL DEFAULT 'upcoming', -- upcoming, live, completed
-      bidPool INTEGER,
-      playerABid INTEGER,
-      playerBBid INTEGER,
-      jackpotWon BOOLEAN,
-      videoUrl TEXT,
-      timestamp INTEGER NOT NULL,
-      FOREIGN KEY(playerAId) REFERENCES players(id),
-      FOREIGN KEY(playerBId) REFERENCES players(id),
-      FOREIGN KEY(winnerId) REFERENCES players(id)
-    );
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS challenges (
+            id TEXT PRIMARY KEY,
+            "challengerId" TEXT NOT NULL REFERENCES players(id),
+            "opponentId" TEXT NOT NULL REFERENCES players(id),
+            status TEXT NOT NULL DEFAULT 'pending',
+            timestamp BIGINT NOT NULL
+        );
+    `);
 
-    CREATE TABLE IF NOT EXISTS challenges (
-      id TEXT PRIMARY KEY,
-      challengerId TEXT NOT NULL,
-      opponentId TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending', -- pending, accepted, rejected
-      timestamp INTEGER NOT NULL,
-      FOREIGN KEY(challengerId) REFERENCES players(id),
-      FOREIGN KEY(opponentId) REFERENCES players(id)
-    );
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS matches (
+            id TEXT PRIMARY KEY,
+            "playerAId" TEXT NOT NULL REFERENCES players(id),
+            "playerBId" TEXT NOT NULL REFERENCES players(id),
+            "scoreA" INTEGER,
+            "scoreB" INTEGER,
+            "winnerId" TEXT REFERENCES players(id),
+            status TEXT NOT NULL DEFAULT 'upcoming',
+            "bidPool" INTEGER,
+            "playerABid" INTEGER,
+            "playerBBid" INTEGER,
+            "jackpotWon" BOOLEAN,
+            "videoUrl" TEXT,
+            timestamp BIGINT NOT NULL
+        );
+    `);
 
-    CREATE TABLE IF NOT EXISTS system_state (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS system_state (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+    `);
 
-    CREATE TABLE IF NOT EXISTS gas_logs (
-      id TEXT PRIMARY KEY,
-      fromPlayerId TEXT NOT NULL,
-      toPlayerId TEXT NOT NULL,
-      bidAmount INTEGER NOT NULL,
-      commissionAmount INTEGER NOT NULL,
-      timestamp INTEGER NOT NULL,
-      FOREIGN KEY(fromPlayerId) REFERENCES players(id),
-      FOREIGN KEY(toPlayerId) REFERENCES players(id)
-    );
-  `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS gas_logs (
+            id TEXT PRIMARY KEY,
+            "fromPlayerId" TEXT NOT NULL REFERENCES players(id),
+            "toPlayerId" TEXT NOT NULL REFERENCES players(id),
+            "bidAmount" INTEGER NOT NULL,
+            "commissionAmount" INTEGER NOT NULL,
+            timestamp BIGINT NOT NULL
+        );
+    `);
+    
+    // Seed admin user if it doesn't exist
+    const adminExists = await pool.query('SELECT id FROM players WHERE "isAdmin" = true');
+    if (adminExists.rowCount === 0) {
+        console.log('Seeding admin user...');
+        const adminPassword = await bcrypt.hash('admin', 10);
+        await pool.query(
+            `INSERT INTO players (id, name, telegram, password, "isAdmin", "clutchPoints", "totalEarned", "totalSpent", "maxStreak", "currentStreak", "pointsScored", "pointsConceded", "matchesWon", "matchesLost") 
+             VALUES ($1, $2, $3, $4, true, 1000, 0, 0, 0, 0, 0, 0, 0)`,
+            ['admin-user-id', 'Admin', 'admin', adminPassword]
+        );
+    }
 
-  // --- SCHEMA MIGRATIONS ---
-  const playerTableInfo = await db.all("PRAGMA table_info(players)");
-  const matchTableInfo = await db.all("PRAGMA table_info(matches)");
-
-  if (!playerTableInfo.some(col => col.name === 'isAdmin')) {
-    console.log("Adding 'isAdmin' column to players table...");
-    await db.exec("ALTER TABLE players ADD COLUMN isAdmin BOOLEAN NOT NULL DEFAULT 0");
-  }
-
-  if (!playerTableInfo.some(col => col.name === 'pointsScored')) {
-    console.log("Adding 'pointsScored' column to players table...");
-    await db.exec("ALTER TABLE players ADD COLUMN pointsScored INTEGER NOT NULL DEFAULT 0");
-  }
-
-  if (!playerTableInfo.some(col => col.name === 'pointsConceded')) {
-    console.log("Adding 'pointsConceded' column to players table...");
-    await db.exec("ALTER TABLE players ADD COLUMN pointsConceded INTEGER NOT NULL DEFAULT 0");
-  }
-
-  if (!matchTableInfo.some(col => col.name === 'jackpotWon')) {
-    console.log("Adding 'jackpotWon' column to matches table...");
-    await db.exec("ALTER TABLE matches ADD COLUMN jackpotWon BOOLEAN");
-  }
-
-  if (!playerTableInfo.some(col => col.name === 'matchesWon')) {
-    console.log("Adding 'matchesWon' column to players table...");
-    await db.exec("ALTER TABLE players ADD COLUMN matchesWon INTEGER NOT NULL DEFAULT 0");
-  }
-
-  if (!playerTableInfo.some(col => col.name === 'matchesLost')) {
-    console.log("Adding 'matchesLost' column to players table...");
-    await db.exec("ALTER TABLE players ADD COLUMN matchesLost INTEGER NOT NULL DEFAULT 0");
-  }
-  
-  if (!matchTableInfo.some(col => col.name === 'videoUrl')) {
-    console.log("Adding 'videoUrl' column to matches table...");
-    await db.exec("ALTER TABLE matches ADD COLUMN videoUrl TEXT");
-  }
-
-  // --- INITIAL STATE ---
-  // Seed initial tournament state if it doesn't exist
-  const currentState = await db.get("SELECT value FROM system_state WHERE key = 'tournamentState'");
-  if (!currentState) {
-    const initialTournamentState = {
-      currentKingId: null,
-      superGamePool: 0,
-      queue: [],
-    };
-    await db.run(
-      "INSERT INTO system_state (key, value) VALUES (?, ?)",
-      'tournamentState',
-      JSON.stringify(initialTournamentState)
-    );
-  }
-
-  // Seed admin user if it doesn't exist
-  const adminExists = await db.get("SELECT id FROM players WHERE isAdmin = 1");
-  if (!adminExists) {
-    const adminPassword = await bcrypt.hash('admin', 10);
-    await db.run(
-      `INSERT INTO players (id, name, telegram, password, isAdmin, clutchPoints) 
-       VALUES (?, ?, ?, ?, 1, 0)`,
-      'admin-user-id', 'Admin', 'admin', adminPassword
-    );
-  }
-
-  dbInstance = db;
-  return db;
+    // Seed initial tournament state
+    const stateExists = await pool.query("SELECT key FROM system_state WHERE key = 'tournamentState'");
+    if(stateExists.rowCount === 0) {
+        console.log('Seeding initial tournament state...');
+        const initialTournamentState = {
+            currentKingId: null,
+            superGamePool: 0,
+            queue: [],
+        };
+        await pool.query(
+            `INSERT INTO system_state (key, value) VALUES ('tournamentState', $1)`,
+            [JSON.stringify(initialTournamentState)]
+        );
+    }
 };
+
+export { pool, initializeSchema };

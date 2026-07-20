@@ -37,11 +37,11 @@ export interface Match {
   playerABid: number | null;
   playerBBid: number | null;
   jackpotWon: boolean | null;
+  videoUrl: string | null;
   timestamp: number;
 }
 
 export interface TournamentState {
   currentKingId: string | null;  // Кто сейчас на троне
-  grandPrizePool: number;        // Текущий размер пула Гран-при
   queue: { playerId: string; bid: number }[]; // Очередь претендентов, отсортированная по bid
 }

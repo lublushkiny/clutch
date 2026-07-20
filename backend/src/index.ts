@@ -1,12 +1,11 @@
 import express from 'express';
 import cors from 'cors';
-import { getDb } from './config/database';
+import { initializeSchema } from './config/database';
 import playerRoutes from './routes/players';
 import matchRoutes from './routes/matches';
 import authRoutes from './routes/auth';
-import adminRoutes from './routes/admin'; // Import admin routes
+import adminRoutes from './routes/admin';
 import challengeRoutes from './routes/challenges';
-import { dbMiddleware } from './middleware/dbMiddleware'; // Import dbMiddleware
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,20 +13,19 @@ const PORT = process.env.PORT || 3001;
 // --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
-app.use(dbMiddleware); // Use dbMiddleware here
 
 // --- ROUTES ---
 app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes); // Use admin routes
+app.use('/api/admin', adminRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/challenges', challengeRoutes);
-app.use('/api', matchRoutes);
+app.use('/api/matches', matchRoutes); // Changed from /api to /api/matches
 
 // --- SERVER STARTUP ---
 const startServer = async () => {
   try {
-    await getDb(); // Initialize database connection and schema
-    console.log('Database connected and schema verified.');
+    await initializeSchema(); // Initialize database schema
+    console.log('Database schema verified.');
     app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`Server is running on http://0.0.0.0:${PORT}`);
     });

@@ -17,21 +17,6 @@ interface MainLayoutProps {
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, activeView, setActiveView }) => {
     const { user } = useAuth();
-    const [superGamePool, setSuperGamePool] = React.useState(0);
-
-    React.useEffect(() => {
-        const fetchState = async () => {
-            try {
-                const res = await axios.get<TournamentState>(`${import.meta.env.VITE_API_URL}/state`);
-                setSuperGamePool(res.data.superGamePool);
-            } catch (error) {
-                console.error("Failed to fetch tournament state for layout:", error);
-            }
-        };
-        fetchState();
-        const interval = setInterval(fetchState, 5000);
-        return () => clearInterval(interval);
-    }, []);
 
   return (
     <div className="bg-gray-900 text-white min-h-screen font-sans">
@@ -42,9 +27,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, activeView, setActive
                 <span className="font-bold text-lg">{user?.clutchPoints.toLocaleString()}</span>
             </div>
             <h1 className="text-3xl font-bold text-orange-500">CLUTCH</h1>
-            <div className="flex items-center space-x-2">
-                <span role="img" aria-label="trophy">🏆</span>
-                <span className="font-bold text-lg">{superGamePool.toLocaleString()}</span>
+            <div className="w-24 text-right"> {/* Placeholder for right side alignment */}
             </div>
         </header>
         

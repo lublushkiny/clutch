@@ -1,11 +1,14 @@
-import { open } from 'sqlite';
+import { pool } from '../config/database';
 import type { TournamentState } from '../models/types';
 
-export const getTournamentState = async (db: Awaited<ReturnType<typeof open>>): Promise<TournamentState> => {
-  const stateRow = await db.get("SELECT value FROM system_state WHERE key = 'tournamentState'");
-  return JSON.parse(stateRow.value);
+export const getTournamentState = async (): Promise<TournamentState> => {
+  const result = await pool.query("SELECT value FROM system_state WHERE key = 'tournamentState'");
+  if (result.rows.length === 0) {
+      throw new Error("Tournament state not found in database.");
+  }
+  return JSON.parse(result.rows[0].value);
 };
 
-export const updateTournamentState = async (db: Awaited<ReturnType<typeof open>>, state: TournamentState) => {
-  await db.run("UPDATE system_state SET value = ? WHERE key = 'tournamentState'", JSON.stringify(state));
+export const updateTournamentState = async (state: TournamentState) => {
+  await pool.query("UPDATE system_state SET value = $1 WHERE key = 'tournamentState'", [JSON.stringify(state)]);
 };

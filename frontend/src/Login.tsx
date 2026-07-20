@@ -8,7 +8,7 @@ interface LoginProps {
   onToggle: () => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onToggle }) => {
+const Login: React.FC = () => {
   const [telegram, setTelegram] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -33,7 +33,7 @@ const Login: React.FC<LoginProps> = ({ onToggle }) => {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
       <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
-        <h2 className="text-3xl font-bold text-center text-orange-500 mb-6">Вход</h2>
+        <h2 className="text-3xl font-bold text-center text-orange-500 mb-6">Вход для администратора</h2>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium">Telegram</label>
@@ -62,12 +62,6 @@ const Login: React.FC<LoginProps> = ({ onToggle }) => {
             Войти
           </button>
         </form>
-        <p className="text-center mt-6">
-          Нет аккаунта?{' '}
-          <button onClick={onToggle} className="text-orange-500 hover:underline">
-            Регистрация
-          </button>
-        </p>
       </div>
     </div>
   );
